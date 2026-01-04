@@ -9,7 +9,7 @@ using Utils;
 
 namespace PatchLoaderMod.Doorstop {
     public class MacOSDoorstopManager: DoorstopManager {
-        public override string LoaderMD5 => "806bb7ee34f2506de077d6a6b18fec44";
+        public override string LoaderMD5 => "878ce9acec5a81571c3750f243efab53";
         public override bool RequiresRestart { get; protected set; } = false;
         public override bool PlatformSupported => true;
 
@@ -41,8 +41,8 @@ namespace PatchLoaderMod.Doorstop {
                     "doorstop_dir=$PWD\n" +
                     "export DYLD_LIBRARY_PATH=${doorstop_dir}:${DYLD_LIBRARY_PATH};",
             "export DYLD_INSERT_LIBRARIES",
-            "export DOORSTOP_ENABLE",
-            "export DOORSTOP_INVOKE_DLL_PATH",
+            "export DOORSTOP_ENABLED",
+            "export DOORSTOP_TARGET_ASSEMBLY",
             "./Cities.app/Contents/MacOS/Cities $@"
         );
 
@@ -59,6 +59,11 @@ namespace PatchLoaderMod.Doorstop {
                 .Append(_configProperties.PreloadKey).AppendLine("=$doorstop_libname;")
                 .Append(_configProperties.EnabledStateKey).Append("=").Append(_configValues.Enabled.ToString().ToUpper()).AppendLine(";")
                 .Append(_configProperties.TargetAssemblyKey).Append("=\"").Append(_configValues.TargetAssembly).AppendLine("\";")
+                .AppendLine("echo \"[Cities_Loader] Launching with Doorstop...\"")
+                .AppendLine("echo \"[Cities_Loader] DOORSTOP_ENABLED=$DOORSTOP_ENABLED\"")
+                .AppendLine("echo \"[Cities_Loader] DOORSTOP_TARGET_ASSEMBLY=$DOORSTOP_TARGET_ASSEMBLY\"")
+                .AppendLine("echo \"[Cities_Loader] DYLD_INSERT_LIBRARIES=$DYLD_INSERT_LIBRARIES\"")
+                .AppendLine("echo \"[Cities_Loader] DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH\"")
                 .Append(_configProperties.GameExePath)
                 .ToString();
         }
@@ -99,27 +104,30 @@ namespace PatchLoaderMod.Doorstop {
                 _logger._Debug("Copying stream.");
                 input.CopyStream(output);
             }
+            
+            FileExtensions.SetExecutable("doorstop.dylib");
         }
         
         internal void GrantExecuteAccessForConfig() {
-            _logger.Info("Trying to grant execute permission to startup script");
-            string command = $"chmod +x {_configFileName}";
-            Process proc = new Process();
-            proc.StartInfo.FileName = "/bin/bash";
-            proc.StartInfo.Arguments = "-c \" " + command + " \"";
-            proc.StartInfo.UseShellExecute = false; 
-            proc.StartInfo.RedirectStandardOutput = true;
-            proc.Start();
-            StringBuilder builder = new StringBuilder();
-            while (!proc.StandardOutput.EndOfStream) {
-                builder.AppendLine(proc.StandardOutput.ReadLine ());
-            }
-            _logger.Info("Result:");
-            _logger.Info(builder.ToString());
+            _logger.Info($"Granting execute permission to {_configFileName}");
+            FileExtensions.SetExecutable(_configFileName);
         }
         
         protected override bool IsLatestLoaderVersion() {
-            return true;
+            if (!IsLoaderInstalled())
+            {
+                return false;
+            }
+
+            try
+            {
+                return FileExtensions.CalculateFileMd5Hash(LoaderFileName) == LoaderMD5;
+            }
+            catch (Exception e)
+            {
+                _logger.Error("Could not calculate hash for file " + LoaderFileName + ". Exception: " + e);
+                return false;
+            }
         }
     }
 }

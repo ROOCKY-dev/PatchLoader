@@ -2,6 +2,10 @@
 *.suo
 *.user
 *.sln.docstates
+install.sh
+Dependencies/
+issue\ #21/
+
 
 # Build results
 [Dd]ebug/
